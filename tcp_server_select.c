@@ -55,14 +55,12 @@ int main(void)
 		for(i=0; i<MAX_CLIENTS; i++) {
 			if(client_socks[i]>=0 && FD_ISSET(client_socks[i], &reading_set)) {
 				ret=handle_reading_slot(client_socks[i]);
-				printf("Ret=%d\n", ret);
 				if(!ret) {
 					FD_CLR(client_socks[i], &reading_set);
 					close(client_socks[i]);
 					client_socks[i]=-1;
 				} else {
 					FD_SET(client_socks[i], &reading_set);
-					printf("\tRead from slot %i\n", i);
 				}
 			} else {
 				FD_SET(client_socks[i], &reading_set);
@@ -110,12 +108,13 @@ int accept_new_connection(int sockfd, int client_socks[], int max_clients)
 {
 	int first_empty_client=0;
 	int rejected_client_fd;
-
+#define NOMORE_SLOTS "No client slot available\n"
 
 	first_empty_client=find_empty_slot(client_socks, max_clients);
 	if(first_empty_client<0) {
-		fprintf(stderr, "No more slot clients available\n");
+		fprintf(stderr, NOMORE_SLOTS);
 		rejected_client_fd=accept(sockfd, NULL, NULL);
+		write(rejected_client_fd, NOMORE_SLOTS, strlen(NOMORE_SLOTS));
 		close(rejected_client_fd);
 		return -1;
 	} else {
