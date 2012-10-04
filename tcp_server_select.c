@@ -20,11 +20,10 @@
 int main(void)
 {
 	unsigned int i;
-	int sockfd=0, rfd=0;
+	int sockfd=0;
 	int client_socks[MAX_CLIENTS];
 
 	fd_set reading_set;
-	fd_set writing_set;
 	int select_max_nfds=0;
 
 	int ret;
