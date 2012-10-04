@@ -1,1 +1,6 @@
 Short programs, snippets of code, etc
+
+This repository contains the following
+	* tcp_server_select.c: Short program which demosntrates the use of
+	  select to manage several clients connected to a single-threaded
+	  single-process TCP/IP server
