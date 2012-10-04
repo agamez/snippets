@@ -7,6 +7,7 @@
 #include <fcntl.h>
 
 #include <errno.h>
+#include <limits.h>
 
 #include "tcp_server_select.h"
 
@@ -23,9 +24,6 @@ int main(void)
 	struct sockaddr_in local;
 
 	unsigned int i;
-
-	char buf[256];
-
 	int sockfd=0, rfd=0;
 	int client_socks[MAX_CLIENTS];
 
@@ -61,44 +59,56 @@ int main(void)
 	while(1) {
 		/* Make sure we always wait for new connections at sockfd */
 		FD_SET(sockfd, &reading_set);
+		select_max_nfds = find_max(client_socks, MAX_CLIENTS);
+		select_max_nfds = (select_max_nfds>sockfd) ? select_max_nfds : sockfd;
+
 		ret=select(select_max_nfds+1, &reading_set, NULL, NULL, NULL);
 
 		/* Check if there's a new connection at sockfd */
 		if(FD_ISSET(sockfd, &reading_set)) {
-			ret=accept_new_connection(sockfd, client_socks);
+			ret=accept_new_connection(sockfd, client_socks, MAX_CLIENTS);
 			if(ret>=0) {
 				FD_SET(client_socks[ret], &reading_set);
-				if(client_socks[ret]>select_max_nfds) select_max_nfds++;
 			}
 		}
+
 		for(i=0; i<MAX_CLIENTS; i++) {
-			if(client_socks[i]>=0) {
-				printf("Checking slot %i\n", i);
-				if(FD_ISSET(client_socks[i], &reading_set)) {
-					ret=read(client_socks[i], buf, MAXBUF);
+			if(client_socks[i]>=0 && FD_ISSET(client_socks[i], &reading_set)) {
+				ret=handle_reading_slot(client_socks[i]);
+				printf("Ret=%d\n", ret);
+				if(!ret) {
+					FD_CLR(client_socks[i], &reading_set);
+					close(client_socks[i]);
+					client_socks[i]=-1;
+				} else {
+					FD_SET(client_socks[i], &reading_set);
 					printf("\tRead from slot %i\n", i);
-					if(!ret) {
-						FD_CLR(client_socks[i], &reading_set);
-						close(client_socks[i]);
-						if(select_max_nfds==client_socks[i]) select_max_nfds--;
-						client_socks[i]=-1;
-					}
 				}
-			}
-			if(client_socks[i]>=0) {
+			} else {
 				FD_SET(client_socks[i], &reading_set);
 			}
 		}
 	}
 }
 
-int accept_new_connection(int sockfd, int client_socks[])
+int handle_reading_slot(int fd)
+{
+	ssize_t ret;
+	char buf[256];
+
+	ret=read(fd, buf, MAXBUF);
+
+	return ret;
+}
+
+
+int accept_new_connection(int sockfd, int client_socks[], int max_clients)
 {
 	int first_empty_client=0;
 	int rejected_client_fd;
 
 
-	first_empty_client=find_empty_slot(client_socks, MAX_CLIENTS);
+	first_empty_client=find_empty_slot(client_socks, max_clients);
 	if(first_empty_client<0) {
 		fprintf(stderr, "No more slot clients available\n");
 		rejected_client_fd=accept(sockfd, NULL, NULL);
@@ -125,4 +135,15 @@ int find_empty_slot(int array[], unsigned int max)
 		if(array[i]<0) return i;
 	}
 	return -1;
+}
+
+int find_max(int array[], unsigned int size)
+{
+	unsigned int i;
+	int max=INT_MIN;
+
+	for(i=0; i<size; i++) {
+		if(array[i]>max) max=array[i];
+	}
+	return max;
 }
