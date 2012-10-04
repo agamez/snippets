@@ -96,17 +96,16 @@ int accept_new_connection(int sockfd, int client_socks[])
 {
 	int first_empty_client=0;
 	int rejected_client_fd;
-	struct sockaddr_in remote;
-	socklen_t remote_len;
+
 
 	first_empty_client=find_empty_slot(client_socks, MAX_CLIENTS);
 	if(first_empty_client<0) {
 		fprintf(stderr, "No more slot clients available\n");
-		rejected_client_fd=accept(sockfd, (struct sockaddr*)&remote, &remote_len);
+		rejected_client_fd=accept(sockfd, NULL, NULL);
 		close(rejected_client_fd);
 		return -1;
 	} else {
-		client_socks[first_empty_client]=accept(sockfd, (struct sockaddr*)&remote, &remote_len);
+		client_socks[first_empty_client]=accept(sockfd, NULL, NULL);
 
 		if(client_socks[first_empty_client]<0) {
 			perror("accept");
