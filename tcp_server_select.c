@@ -19,10 +19,6 @@
 
 int main(void)
 {
-	unsigned int port=PORT;
-
-	struct sockaddr_in local;
-
 	unsigned int i;
 	int sockfd=0, rfd=0;
 	int client_socks[MAX_CLIENTS];
@@ -35,22 +31,7 @@ int main(void)
 
 	memset(&client_socks, -1, sizeof(client_socks[0])*MAX_CLIENTS);
 
-	if((sockfd=socket(AF_INET, SOCK_STREAM, 0))<0) {
-		perror("socket");
-		return -1;
-	}
-
-	bzero(&local,sizeof(local));
-	local.sin_family = AF_INET;
-	local.sin_port = htons(port);
-
-	local.sin_addr.s_addr = htonl(INADDR_ANY);
-	if (bind(sockfd, (struct sockaddr*)&local, sizeof(local)) < 0) {
-		perror("bind");
-		return -errno;
-	}
-
-	listen(sockfd, 16);
+	sockfd=listen_newsocket(PORT);
 
 	FD_ZERO(&reading_set);
 	FD_SET(sockfd, &reading_set);
@@ -101,6 +82,30 @@ int handle_reading_slot(int fd)
 	return ret;
 }
 
+int listen_newsocket(int port)
+{
+	int sockfd;
+	struct sockaddr_in local;
+
+	if((sockfd=socket(AF_INET, SOCK_STREAM, 0))<0) {
+		perror("socket");
+		return -1;
+	}
+
+	bzero(&local,sizeof(local));
+	local.sin_family = AF_INET;
+	local.sin_port = htons(port);
+
+	local.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (bind(sockfd, (struct sockaddr*)&local, sizeof(local)) < 0) {
+		perror("bind");
+		return -errno;
+	}
+
+	listen(sockfd, 16);
+
+	return sockfd;
+}
 
 int accept_new_connection(int sockfd, int client_socks[], int max_clients)
 {
