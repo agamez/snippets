@@ -8,25 +8,26 @@
 
 #include <errno.h>
 
+#include "tcp_server_select.h"
+
 #define MAXBUF 256
 #define PORT    2323		/* Port to listen on */
 #define BACKLOG     16		/* Passed to listen() */
 #define MAX_CLIENTS 4
 
+
 int main(void)
 {
 	unsigned int port=PORT;
 
-	int client_socks[MAX_CLIENTS];
-	int first_empty_client=0;
-	int rejected_client_fd;
+	struct sockaddr_in local;
+
 	unsigned int i;
 
 	char buf[256];
 
 	int sockfd=0, rfd=0;
-	struct sockaddr_in local, remote;
-	socklen_t remote_len;
+	int client_socks[MAX_CLIENTS];
 
 	fd_set reading_set;
 	fd_set writing_set;
@@ -64,22 +65,10 @@ int main(void)
 
 		/* Check if there's a new connection at sockfd */
 		if(FD_ISSET(sockfd, &reading_set)) {
-			first_empty_client=find_empty(client_socks, MAX_CLIENTS);
-			if(first_empty_client<0) {
-				fprintf(stderr, "No more slot clients available\n");
-				rejected_client_fd=accept(sockfd, (struct sockaddr*)&remote, &remote_len);
-				close(rejected_client_fd);
-			} else {
-				client_socks[first_empty_client]=accept(sockfd, (struct sockaddr*)&remote, &remote_len);
-
-				if(client_socks[first_empty_client]<0) {
-					perror("accept");
-				} else {
-					/* Set as nonblocking and put the new descriptor on reading_set */
-					fcntl(client_socks[first_empty_client], F_SETFL, O_NONBLOCK);
-					if(client_socks[first_empty_client]>select_max_nfds) select_max_nfds++;
-					FD_SET(client_socks[first_empty_client], &reading_set);
-				}
+			ret=accept_new_connection(sockfd, client_socks);
+			if(ret>=0) {
+				FD_SET(client_socks[ret], &reading_set);
+				if(client_socks[ret]>select_max_nfds) select_max_nfds++;
 			}
 		}
 		for(i=0; i<MAX_CLIENTS; i++) {
@@ -103,7 +92,34 @@ int main(void)
 	}
 }
 
-int find_empty(int array[], unsigned int max)
+int accept_new_connection(int sockfd, int client_socks[])
+{
+	int first_empty_client=0;
+	int rejected_client_fd;
+	struct sockaddr_in remote;
+	socklen_t remote_len;
+
+	first_empty_client=find_empty_slot(client_socks, MAX_CLIENTS);
+	if(first_empty_client<0) {
+		fprintf(stderr, "No more slot clients available\n");
+		rejected_client_fd=accept(sockfd, (struct sockaddr*)&remote, &remote_len);
+		close(rejected_client_fd);
+		return -1;
+	} else {
+		client_socks[first_empty_client]=accept(sockfd, (struct sockaddr*)&remote, &remote_len);
+
+		if(client_socks[first_empty_client]<0) {
+			perror("accept");
+			return -1;
+		} else {
+			/* Set as nonblocking and return the slot used */
+			fcntl(client_socks[first_empty_client], F_SETFL, O_NONBLOCK);
+			return first_empty_client;
+		}
+	}
+}
+
+int find_empty_slot(int array[], unsigned int max)
 {
 	unsigned int i;
 	for(i=0; i<max; i++) {
